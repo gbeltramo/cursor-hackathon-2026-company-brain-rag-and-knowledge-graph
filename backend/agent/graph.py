@@ -142,7 +142,7 @@ def api_agent_node(state: State) -> dict:
     question = state["question"]
     if state.get("intent") == "artifact":  # inline HTML deliverable
         question += _HTML_SUFFIX
-    answer, sources = _gather_api(question, state["verticale"], reasoning=True)
+    answer, sources = _gather_api(question, state["verticale"], reasoning=False)
     return {"answer": answer, "sources": sources}
 
 
