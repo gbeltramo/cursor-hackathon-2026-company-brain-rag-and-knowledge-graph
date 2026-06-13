@@ -10,8 +10,10 @@ the frozen AskResponse schema.
 
 from __future__ import annotations
 
+import logging
 import operator
 from functools import lru_cache
+import time
 from typing import Annotated, Literal
 
 from langchain.agents import create_agent
@@ -25,6 +27,10 @@ from .llm import get_chat_model, message_text
 from .router import route_question
 from .sources import get_sources, reset_sources
 from .api_tools import TOOLS_BY_VERTICALE
+
+
+logger = logging.getLogger("company_brain")
+
 
 _RECURSION_LIMIT = 8
 
@@ -240,30 +246,33 @@ _cache: dict[str, dict] = {}
 
 
 def answer_question(question: str) -> dict:
-    """Run the graph for one question and return the AskResponse payload.
-
-    Caches identical questions (the platform self-test repeats them) and never
-    raises - any failure becomes an honest answer so /ask always returns 200.
-    """
     key = " ".join((question or "").lower().split())
     if key in _cache:
+        logger.debug("Cache hit for: %r", key)
         return _cache[key]
 
     try:
-        final = get_graph().invoke({"question": question})
+        t0 = time.perf_counter()
+        # Stream so you see each node as it runs
+        state = {}
+        for event in get_graph().stream({"question": question}, stream_mode="updates"):
+            node = list(event.keys())[0]
+            patch = event[node]
+            logger.info("Node %-20s | %s", node, {k: str(v)[:120] for k, v in patch.items()})
+            state.update(patch)
+
+        elapsed = time.perf_counter() - t0
+        logger.info("Graph finished in %.2fs | verticale=%s", elapsed, state.get("verticale"))
+
         result = {
-            "answer": final.get("answer") or _FALLBACK,
-            "sources": list(dict.fromkeys(final.get("sources") or [])),
-            "verticale": final.get("verticale") or "kb",
-            "artifact_url": final.get("artifact_url"),
+            "answer": state.get("answer") or _FALLBACK,
+            "sources": list(dict.fromkeys(state.get("sources") or [])),
+            "verticale": state.get("verticale") or "kb",
+            "artifact_url": state.get("artifact_url"),
         }
     except Exception:
-        result = {
-            "answer": _FALLBACK,
-            "sources": [],
-            "verticale": "kb",
-            "artifact_url": None,
-        }
+        logger.exception("Graph raised for question: %r", question)
+        result = {"answer": _FALLBACK, "sources": [], "verticale": "kb", "artifact_url": None}
 
     _cache[key] = result
     return result

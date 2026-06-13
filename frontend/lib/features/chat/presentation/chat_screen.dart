@@ -69,11 +69,16 @@ class _ChatScreenState extends State<ChatScreen> {
     final messages = _viewModel.messages;
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.restaurant_menu, size: 22),
-            SizedBox(width: 10),
-            Text('Al Dente - Company Brain'),
+            const Icon(Icons.restaurant_menu, size: 26),
+            const SizedBox(width: 10),
+            Text(
+              'Al Dente - Company Brain',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
           ],
         ),
       ),
@@ -124,15 +129,16 @@ class _EmptyState extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.auto_awesome,
-                  size: 40, color: theme.colorScheme.primary),
+                  size: 48, color: theme.colorScheme.primary),
               const SizedBox(height: 16),
               Text('Ask the company brain',
-                  style: theme.textTheme.headlineSmall),
-              const SizedBox(height: 8),
+                  style: theme.textTheme.headlineMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
               Text(
                 'Customers, orders, production, suppliers, calls, and company '
                 'documents - ask anything about Al Dente.',
-                style: theme.textTheme.bodyMedium?.copyWith(
+                style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -143,7 +149,10 @@ class _EmptyState extends StatelessWidget {
                 children: [
                   for (final s in suggestions)
                     ActionChip(
-                      label: Text(s),
+                      label: Text(
+                        s,
+                        style: theme.textTheme.bodyMedium,
+                      ),
                       onPressed: () => onPick(s),
                     ),
                 ],

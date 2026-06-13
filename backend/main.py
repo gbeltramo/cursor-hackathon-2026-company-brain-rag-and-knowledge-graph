@@ -18,6 +18,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from agent.kb import build_index
+from agent.graph import answer_question
+
 load_dotenv()
 
 logger = logging.getLogger("company_brain")
@@ -28,7 +31,7 @@ async def lifespan(app: FastAPI):
     # Build the in-memory KB embedding index once at startup (35 small docs =
     # one batched embed call, well within the Railway healthcheck window).
     try:
-        from agent.kb import build_index
+        
 
         build_index()
         logger.info("KB index built")
@@ -73,8 +76,6 @@ def ask(request: AskRequest) -> AskResponse:
     Always returns HTTP 200 (per the frozen contract): provider/tool failures
     are turned into an honest natural-language answer inside the graph.
     """
-    from agent.graph import answer_question
-
     result = answer_question(request.question)
     return AskResponse(**result)
 

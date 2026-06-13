@@ -30,7 +30,7 @@ class AnswerView extends StatelessWidget {
         else
           SelectableText(
             result.answer,
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+            style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
           ),
         if (result.artifactUrl != null) ...[
           const SizedBox(height: 12),
@@ -74,7 +74,7 @@ class _VerticaleTag extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             verticale.toUpperCase(),
-            style: theme.textTheme.labelSmall?.copyWith(
+            style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onPrimaryContainer,
               letterSpacing: 1.2,
               fontWeight: FontWeight.w700,
@@ -99,7 +99,7 @@ class _Sources extends StatelessWidget {
       children: [
         SelectableText(
           'Sources',
-          style: theme.textTheme.labelMedium?.copyWith(
+          style: theme.textTheme.labelLarge?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),

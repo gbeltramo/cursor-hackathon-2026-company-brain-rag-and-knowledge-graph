@@ -40,7 +40,7 @@ class MessageBubble extends StatelessWidget {
     if (isUser) {
       return SelectableText(
         message.text ?? '',
-        style: theme.textTheme.bodyMedium
+        style: theme.textTheme.bodyLarge
             ?.copyWith(color: theme.colorScheme.onPrimary),
       );
     }
