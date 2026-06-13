@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from .llm import get_chat_model, get_reasoning_model
+from .llm import get_chat_model
 from .logging_utils import get_logger
 
 logger = get_logger("router")
@@ -48,8 +48,7 @@ class Route(BaseModel):
 def route_question(question: str) -> Route:
     """Classify a question. Falls back to a safe default on any failure."""
     try:
-        # model = get_chat_model().with_structured_output(Route)
-        model = get_reasoning_model().with_structured_output(Route)
+        model = get_chat_model().with_structured_output(Route)
         result: Route = model.invoke(
             [
                 {"role": "system", "content": _SYSTEM},
