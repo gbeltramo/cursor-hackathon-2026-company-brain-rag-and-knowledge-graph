@@ -164,7 +164,7 @@ def kb_search(query: str) -> str:
     """Search the company knowledge base (product specs, allergens, shelf life,
     quality/returns policies, price list, customer requirements). Use for any
     policy/spec/price question, including the policy side of a complaint."""
-    docs = search_kb(query, k=10, fetch_k=20)
+    docs = search_kb(query, k=20, fetch_k=25)
     if not docs:
         return "No matching knowledge base documents."
     for d in docs:
