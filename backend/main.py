@@ -7,18 +7,37 @@ then answers with text or an artifact. Full spec and rules in AGENTS.md.
 The /ask contract below is FROZEN - the automated evaluator depends on it.
 """
 
+import logging
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 load_dotenv()
 
-app = FastAPI(title="Al Dente Company Brain")
+logger = logging.getLogger("company_brain")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Build the in-memory KB embedding index once at startup (35 small docs =
+    # one batched embed call, well within the Railway healthcheck window).
+    try:
+        from agent.kb import build_index
+
+        build_index()
+        logger.info("KB index built")
+    except Exception:  # never block startup / healthcheck on a provider hiccup
+        logger.exception("KB index build failed; will build lazily on first use")
+    yield
+
+
+app = FastAPI(title="Al Dente Company Brain", lifespan=lifespan)
 
 _STATIC = Path(__file__).resolve().parent / "static"
 _FILES = _STATIC / "files"
@@ -56,11 +75,12 @@ def health() -> dict[str, str]:
 
 @app.post("/ask", response_model=AskResponse)
 def ask(request: AskRequest) -> AskResponse:
-    raise HTTPException(
-        status_code=501,
-        detail=(
-            "Not implemented. Build the agent loop: route the question, call "
-            "the Al Dente APIs and your knowledge base, compose the answer. "
-            "See AGENTS.md for the full spec."
-        ),
-    )
+    """Answer a question about Al Dente via the LangGraph agent.
+
+    Always returns HTTP 200 (per the frozen contract): provider/tool failures
+    are turned into an honest natural-language answer inside the graph.
+    """
+    from agent.graph import answer_question
+
+    result = answer_question(request.question)
+    return AskResponse(**result)
