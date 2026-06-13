@@ -1,4 +1,4 @@
-"""check_thinking.py — probe whether Qwen3.5-9b on Regolo runs a <think> block.
+"""check_thinking.py — probe whether Qwen3.5-122b on Regolo runs a <think> block.
 
 Sends the same prompt twice:
   • round A: enable_thinking=True  (force thinking on)

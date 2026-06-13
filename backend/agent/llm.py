@@ -41,13 +41,13 @@ def _embedding_api_key() -> str:
 def get_chat_model() -> ChatOpenAI:
     """Tool-calling chat model used by the router and the verticale agents.
 
-    qwen3.5-9b is a reasoning model: left to its own devices it emits a
+    qwen3.5-122b is a reasoning model: left to its own devices it emits a
     ``<think>`` block that burns tokens and latency (we have a hard 30s budget).
     We disable thinking globally via the Qwen chat-template flag so every call
     (router + verticale agents) goes straight to the answer/tool call.
     """
     return ChatOpenAI(
-        model=os.environ.get("MODEL", "qwen3.5-9b"),
+        model=os.environ.get("MODEL", "qwen3.5-122b"),
         base_url=_base_url(),
         api_key=_api_key(),
         temperature=0,
@@ -59,20 +59,20 @@ def get_chat_model() -> ChatOpenAI:
 
 @lru_cache(maxsize=1)
 def get_reasoning_model() -> ChatOpenAI:
-    """Same model but with Qwen3 thinking enabled.
-    Use only for the final answer synthesis nodes (kb_node, api_agent_node).
-    The router stays on get_chat_model() (thinking off) for speed.
+    """Same model, thinking disabled.
+
+    Kept for call-site compatibility, but thinking is forced off so no call path
+    ever incurs the reasoning/thinking phase (we have a hard 30s budget).
     """
     return ChatOpenAI(
-        model=os.environ.get("MODEL", "qwen3.5-9b"),
+        model=os.environ.get("MODEL", "qwen3.5-122b"),
         base_url=_base_url(),
         api_key=_api_key(),
         temperature=0,
         timeout=25,
         max_retries=2,
         extra_body={
-            "chat_template_kwargs": {"enable_thinking": True},
-            "reasoning_effort": "low",
+            "chat_template_kwargs": {"enable_thinking": False},
         },
     )
 

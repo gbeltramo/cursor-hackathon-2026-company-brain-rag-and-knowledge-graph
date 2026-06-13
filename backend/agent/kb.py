@@ -47,87 +47,6 @@ _INDEX_DIR: Path = (
 _FORCE_REBUILD: bool = os.environ.get("KB_FORCE_REBUILD", "0").strip() == "1"
 
 # ---------------------------------------------------------------------------
-# Category look-up table (source of truth - no runtime inference needed for
-# docs that are already indexed with their category in metadata)
-# ---------------------------------------------------------------------------
-
-CATEGORY_BY_ID: dict[str, str] = {
-    # Product specifications (18)
-    "DOC-001": "product_specification",
-    "DOC-002": "product_specification",
-    "DOC-003": "product_specification",
-    "DOC-004": "product_specification",
-    "DOC-005": "product_specification",
-    "DOC-006": "product_specification",
-    "DOC-007": "product_specification",
-    "DOC-008": "product_specification",
-    "DOC-009": "product_specification",
-    "DOC-010": "product_specification",
-    "DOC-018": "product_specification",
-    "DOC-019": "product_specification",
-    "DOC-020": "product_specification",
-    "DOC-021": "product_specification",
-    "DOC-022": "product_specification",
-    "DOC-023": "product_specification",
-    "DOC-024": "product_specification",
-    "DOC-025": "product_specification",
-    # Quality policies (4)
-    "DOC-011": "policy",
-    "DOC-012": "policy",
-    "DOC-013": "policy",
-    "DOC-026": "policy",
-    # Procedures (6)
-    "DOC-016": "procedure",
-    "DOC-017": "procedure",
-    "DOC-028": "procedure",
-    "DOC-029": "procedure",
-    "DOC-032": "procedure",
-    "DOC-033": "procedure",
-    # Other document types (7)
-    "DOC-014": "customer_requirement",
-    "DOC-015": "commercial",
-    "DOC-027": "supplier_requirement",
-    "DOC-030": "logistics",
-    "DOC-031": "packaging_spec",
-    "DOC-034": "sustainability",
-    "DOC-035": "compliance",
-}
-
-# ---------------------------------------------------------------------------
-# Query-time category inference (keyword heuristic)
-# ---------------------------------------------------------------------------
-
-_CATEGORY_HINTS: dict[str, tuple[str, ...]] = {
-    "product_specification": (
-        "allergen",
-        "shelf life",
-        "ingredient",
-        "nutrition",
-        "spec",
-        "gluten",
-        "best before",
-        "storage",
-        "ean",
-        "format",
-    ),
-    "commercial": ("price", "prices", "list price", "listino", "cost", "eur"),
-    "policy": ("policy", "return", "complaint", "quality", "warranty", "refund"),
-    "procedure": ("procedure", "process", "how do we", "steps", "workflow"),
-}
-
-
-def infer_category(query: str) -> str | None:
-    """Return the most likely category for *query* based on keyword hits."""
-    q = query.lower()
-    best: tuple[int, str | None] = (0, None)
-    for category, hints in _CATEGORY_HINTS.items():
-        score = sum(1 for h in hints if h in q)
-        if score > best[0]:
-            best = (score, category)
-    return best[1]
-
-
-# ---------------------------------------------------------------------------
 # Index build / load helpers
 # ---------------------------------------------------------------------------
 
@@ -137,16 +56,14 @@ _docs_by_id: dict[str, KbDocument] = {}
 
 
 def _langchain_docs(kb_docs: list[KbDocument]) -> list[Document]:
-    """Convert KbDocuments to LangChain Documents, injecting authoritative category."""
+    """Convert KbDocuments to LangChain Documents."""
     result: list[Document] = []
     for doc in kb_docs:
-        category = CATEGORY_BY_ID.get(doc.doc_id, doc.category)
         result.append(
             Document(
                 page_content=doc.content,
                 metadata={
                     "doc_id": doc.doc_id,
-                    "category": category,
                     "title": doc.title,
                 },
             )
@@ -220,24 +137,17 @@ def build_index() -> FAISS:
         return _store
 
 
-def search_kb(query: str, k: int = 3, category: str | None = None) -> list[Document]:
-    """Return the top-k whole documents for *query*, optionally filtered by *category*.
+def search_kb(query: str, k: int = 5, fetch_k: int = 10) -> list[Document]:
+    """Return the top-*k* whole documents for *query* by similarity score.
 
-    When a category filter is provided but yields no results we fall back to
-    an unfiltered search so callers always get a useful answer.
+    Retrieves *fetch_k* candidates, re-ranks them by similarity score and keeps
+    the best *k*.
     """
     store = build_index()
-
-    if category:
-        results = store.similarity_search(
-            query,
-            k=k,
-            filter={"category": category},
-        )
-        if results:
-            return results
-
-    return store.similarity_search(query, k=k)
+    candidates = store.similarity_search_with_score(query, k=fetch_k)
+    # FAISS returns L2 distance (lower = more similar); re-rank ascending.
+    candidates.sort(key=lambda pair: pair[1])
+    return [doc for doc, _score in candidates[:k]]
 
 
 def format_context(docs: list[Document]) -> str:
@@ -254,7 +164,7 @@ def kb_search(query: str) -> str:
     """Search the company knowledge base (product specs, allergens, shelf life,
     quality/returns policies, price list, customer requirements). Use for any
     policy/spec/price question, including the policy side of a complaint."""
-    docs = search_kb(query, k=3, category=infer_category(query))
+    docs = search_kb(query, k=10, fetch_k=20)
     if not docs:
         return "No matching knowledge base documents."
     for d in docs:

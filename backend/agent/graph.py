@@ -22,7 +22,7 @@ from typing_extensions import TypedDict
 from .api_tools import TOOLS_BY_VERTICALE
 from .artifacts import build_artifact, detect_binary_format
 from .guardrails import REFUSAL_MESSAGE, check_input, sanitize_output
-from .kb import format_context, infer_category, kb_search, search_kb
+from .kb import format_context, kb_search, search_kb
 from .llm import get_chat_model, get_reasoning_model, message_text
 from .logging_utils import get_logger, log_node, setup_logging
 from .router import route_question
@@ -119,7 +119,7 @@ def _gather_api(question: str, verticale: str, reasoning: bool = False) -> tuple
 
 
 def _gather_kb(question: str, reasoning: bool = False) -> tuple[str, list[str]]:
-    docs = search_kb(question, k=3, category=infer_category(question))
+    docs = search_kb(question)
     if not docs:
         return "", []
     user = f"Documents:\n\n{format_context(docs)}\n\nQuestion: {question}"
@@ -151,7 +151,7 @@ def kb_node(state: State) -> dict:
     question = state["question"]
     if state.get("intent") == "artifact":  # inline HTML deliverable
         question += _HTML_SUFFIX
-    answer, sources = _gather_kb(question, reasoning=True)
+    answer, sources = _gather_kb(question, reasoning=False)
     if not answer and not sources:
         return {
             "answer": "I couldn't find this in the company knowledge base documents.",
