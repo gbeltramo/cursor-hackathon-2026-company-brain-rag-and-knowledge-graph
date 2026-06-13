@@ -14,10 +14,9 @@ dependencies = [
     "langgraph>=1.0,<2.0",
     "langchain-openai>=0.3.0",
     "numpy>=2.0.0",
-    # --- Suggested extras: uncomment what you need, then run `uv sync` ---
-    # Binary artifact generation (docx / pptx / pdf / xlsx questions):
-    # "python-docx>=1.2.0",
-    # "python-pptx>=1.0.2",
-    # "fpdf2>=2.8.7",
-    # "openpyxl>=3.1.5",         # Excel (.xlsx) workbooks
+    # --- Binary artifact generation (docx / pptx / pdf / xlsx questions) ---
+    "python-docx>=1.2.0",
+    "python-pptx>=1.0.2",
+    "fpdf2>=2.8.7",
+    "openpyxl>=3.1.5",
 ]

@@ -41,20 +41,13 @@ app = FastAPI(title="Al Dente Company Brain", lifespan=lifespan)
 
 _STATIC = Path(__file__).resolve().parent / "static"
 _FILES = _STATIC / "files"
+_WEB = _STATIC / "web"
 _FILES.mkdir(parents=True, exist_ok=True)
 
 # Binary artifacts (docx / pptx / pdf / xlsx) you generate at request time go in
 # static/files/ and are served from /files/<name> by this same backend.
 # artifact_url must be ABSOLUTE: f"{os.environ['PUBLIC_BASE_URL']}/files/<name>"
 app.mount("/files", StaticFiles(directory=_FILES), name="files")
-
-
-@app.get("/", include_in_schema=False)
-def ui() -> FileResponse:
-    """Placeholder page. Building a minimal UI is part of the challenge:
-    it must exist and work, but it is not graded - replace static/index.html
-    (or serve your own frontend)."""
-    return FileResponse(_STATIC / "index.html")
 
 
 class AskRequest(BaseModel):
@@ -84,3 +77,16 @@ def ask(request: AskRequest) -> AskResponse:
 
     result = answer_question(request.question)
     return AskResponse(**result)
+
+
+# Serve the Flutter web UI at the root. Mounted LAST so the API routes above
+# (/ask, /health, /files) keep priority; this catch-all handles "/" and all the
+# SPA assets (main.dart.js, assets/, canvaskit/, ...). Falls back to the
+# placeholder page if the web build has not been copied into static/web.
+if (_WEB / "index.html").exists():
+    app.mount("/", StaticFiles(directory=_WEB, html=True), name="webapp")
+else:
+
+    @app.get("/", include_in_schema=False)
+    def ui() -> FileResponse:
+        return FileResponse(_STATIC / "index.html")

@@ -13,12 +13,13 @@ from __future__ import annotations
 import re
 
 _JAILBREAK_PATTERNS = [
-    r"ignore (all |previous |prior )?instructions",
-    r"disregard (all |the )?(previous |prior )?(instructions|rules)",
-    r"you are now (dan|an? ai with no restrictions)",
-    r"pretend (you have no|there are no) (rules|restrictions|guidelines)",
-    r"(bypass|override|disable) (your )?(safety|filters|restrictions|guardrails)",
-    r"reveal (your |the )?(system )?prompt",
+    r"ignore\s+(?:\w+\s+){0,4}(?:instructions|prompt|rules)",
+    r"disregard\s+(?:\w+\s+){0,4}(?:instructions|prompt|rules)",
+    r"forget\s+(?:\w+\s+){0,4}(?:instructions|rules)",
+    r"you are now (?:dan|an? ai with no restrictions)",
+    r"pretend (?:you have no|there are no) (?:rules|restrictions|guidelines)",
+    r"(?:bypass|override|disable) (?:your )?(?:safety|filters|restrictions|guardrails)",
+    r"reveal (?:your |the )?(?:system )?prompt",
     r"do anything now",
     r"jailbreak",
 ]
