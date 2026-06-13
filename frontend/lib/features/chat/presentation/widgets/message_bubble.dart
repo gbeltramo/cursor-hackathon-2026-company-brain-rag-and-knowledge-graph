@@ -38,7 +38,7 @@ class MessageBubble extends StatelessWidget {
 
   Widget _content(BuildContext context, bool isUser, ThemeData theme) {
     if (isUser) {
-      return Text(
+      return SelectableText(
         message.text ?? '',
         style: theme.textTheme.bodyMedium
             ?.copyWith(color: theme.colorScheme.onPrimary),
@@ -54,7 +54,7 @@ class MessageBubble extends StatelessWidget {
           Icon(Icons.error_outline, size: 18, color: theme.colorScheme.error),
           const SizedBox(width: 8),
           Flexible(
-            child: Text(
+            child: SelectableText(
               message.error!,
               style: theme.textTheme.bodyMedium
                   ?.copyWith(color: theme.colorScheme.error),

@@ -26,7 +26,7 @@ class AnswerView extends StatelessWidget {
         _VerticaleTag(verticale: result.verticale),
         const SizedBox(height: 8),
         if (_looksLikeHtml)
-          HtmlWidget(result.answer)
+          SelectionArea(child: HtmlWidget(result.answer))
         else
           SelectableText(
             result.answer,
@@ -97,7 +97,7 @@ class _Sources extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        SelectableText(
           'Sources',
           style: theme.textTheme.labelMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
@@ -110,7 +110,7 @@ class _Sources extends StatelessWidget {
           children: [
             for (final s in sources)
               Chip(
-                label: Text(s),
+                label: SelectableText(s),
                 visualDensity: VisualDensity.compact,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 side: BorderSide(color: theme.colorScheme.outlineVariant),
