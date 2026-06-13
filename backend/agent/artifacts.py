@@ -84,7 +84,13 @@ def _blocks(content: str) -> list[dict]:
             continue
         heading = re.match(r"^(#{1,6})\s+(.*)$", line)
         if heading:
-            blocks.append({"type": "heading", "level": len(heading.group(1)), "text": heading.group(2)})
+            blocks.append(
+                {
+                    "type": "heading",
+                    "level": len(heading.group(1)),
+                    "text": heading.group(2),
+                }
+            )
             i += 1
             continue
         bullet = re.match(r"^[-*]\s+(.*)$", line.strip())

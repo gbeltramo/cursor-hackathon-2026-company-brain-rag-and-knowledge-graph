@@ -11,14 +11,15 @@ the frozen AskResponse schema.
 from __future__ import annotations
 
 import operator
-from functools import lru_cache
 import time
+from functools import lru_cache
 from typing import Annotated, Literal
 
 from langchain.agents import create_agent
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
+from .api_tools import TOOLS_BY_VERTICALE
 from .artifacts import build_artifact, detect_binary_format
 from .guardrails import REFUSAL_MESSAGE, check_input, sanitize_output
 from .kb import format_context, infer_category, kb_search, search_kb
@@ -26,8 +27,6 @@ from .llm import get_chat_model, message_text
 from .logging_utils import get_logger, log_node, setup_logging
 from .router import route_question
 from .sources import get_sources, reset_sources
-from .api_tools import TOOLS_BY_VERTICALE
-
 
 logger = get_logger("graph")
 
@@ -96,11 +95,7 @@ def input_guard(state: State) -> dict:
 @log_node
 def route(state: State) -> dict:
     decision = route_question(state["question"])
-    fmt = (
-        detect_binary_format(state["question"])
-        if decision.intent == "artifact"
-        else None
-    )
+    fmt = detect_binary_format(state["question"]) if decision.intent == "artifact" else None
     return {
         "verticale": decision.verticale,
         "intent": decision.intent,
@@ -129,7 +124,10 @@ def _gather_kb(question: str) -> tuple[str, list[str]]:
     user = f"Documents:\n\n{format_context(docs)}\n\nQuestion: {question}"
     try:
         response = get_chat_model().invoke(
-            [{"role": "system", "content": _KB_SYSTEM}, {"role": "user", "content": user}]
+            [
+                {"role": "system", "content": _KB_SYSTEM},
+                {"role": "user", "content": user},
+            ]
         )
         text = message_text(response)
     except Exception:
@@ -237,9 +235,7 @@ def get_graph():
 
     builder.add_edge(START, "input_guard")
     builder.add_conditional_edges("input_guard", _after_input, ["route", "refuse"])
-    builder.add_conditional_edges(
-        "route", _after_route, ["api_agent", "kb", "artifact", "refuse"]
-    )
+    builder.add_conditional_edges("route", _after_route, ["api_agent", "kb", "artifact", "refuse"])
     builder.add_edge("api_agent", "output_guard")
     builder.add_edge("kb", "output_guard")
     builder.add_edge("artifact", "output_guard")
@@ -280,7 +276,12 @@ def answer_question(question: str) -> dict:
         }
     except Exception:
         logger.exception("Graph raised for question: %r", question)
-        result = {"answer": _FALLBACK, "sources": [], "verticale": "kb", "artifact_url": None}
+        result = {
+            "answer": _FALLBACK,
+            "sources": [],
+            "verticale": "kb",
+            "artifact_url": None,
+        }
 
     _cache[key] = result
     return result

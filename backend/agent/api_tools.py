@@ -64,7 +64,11 @@ def _get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         return {"error": "access_denied", "status": 401}
     if resp.status_code >= 400:
         logger.warning("GET %s -> %s", path, resp.status_code)
-        return {"error": "bad_request", "status": resp.status_code, "detail": resp.text[:200]}
+        return {
+            "error": "bad_request",
+            "status": resp.status_code,
+            "detail": resp.text[:200],
+        }
     try:
         return resp.json()
     except ValueError:
@@ -95,13 +99,21 @@ def _list(path: str, params: dict[str, Any], fetch_all: bool, limit: int) -> str
     page = _get(path, {**params, "limit": min(limit, _PAGE_SIZE)})
     if "error" in page:
         return json.dumps(page)
-    return json.dumps(
-        {
-            "data": page.get("data", []),
-            "total": page.get("pagination", {}).get("total"),
-            "returned": len(page.get("data", [])),
-        }
-    )
+
+    data = page.get("data", [])
+    total = page.get("pagination", {}).get("total", len(data))
+    returned = len(data)
+
+    result: dict[str, Any] = {"data": data, "total": total, "returned": returned}
+
+    # Warn the model explicitly when it's only seeing a partial view
+    if returned < total:
+        result["warning"] = (
+            f"Only {returned} of {total} records returned. "
+            "Call again with fetch_all=true to aggregate correctly."
+        )
+
+    return json.dumps(result)
 
 
 # --- Calculator ---------------------------------------------------------------
@@ -169,8 +181,13 @@ def calculator(expression: str) -> str:
         return json.dumps({"expression": expression, "error": "division_by_zero"})
     except Exception as exc:  # invalid / disallowed expression
         logger.warning("calculator rejected %r: %s", expression, exc)
-        return json.dumps({"expression": expression, "error": "invalid_expression",
-                           "detail": str(exc)})
+        return json.dumps(
+            {
+                "expression": expression,
+                "error": "invalid_expression",
+                "detail": str(exc),
+            }
+        )
     return json.dumps({"expression": expression, "result": result})
 
 
@@ -426,6 +443,4 @@ TOOLS_BY_VERTICALE: dict[str, list] = {
     "erp": ERP_TOOLS + [crm_customers, crm_orders, calculator],
 }
 
-ALL_TOOLS = list(
-    {t.name: t for t in CRM_TOOLS + CALLS_TOOLS + ERP_TOOLS + [calculator]}.values()
-)
+ALL_TOOLS = list({t.name: t for t in CRM_TOOLS + CALLS_TOOLS + ERP_TOOLS + [calculator]}.values())

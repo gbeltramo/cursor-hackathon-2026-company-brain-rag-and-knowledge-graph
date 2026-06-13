@@ -15,6 +15,7 @@ import os
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Callable
 
 _ROOT_NAME = "company_brain"
@@ -85,11 +86,6 @@ def _truncate(value: Any, limit: int = 160) -> str:
 
 
 def log_node(fn: Callable[..., dict]) -> Callable[..., dict]:
-    """Decorate a LangGraph node to log its entry inputs and exit patch.
-
-    Ensures logging is set up so node traces always land in the debug file,
-    even when the graph is driven outside FastAPI (tests, scripts).
-    """
     node_logger = get_logger("graph")
 
     @wraps(fn)
@@ -97,13 +93,23 @@ def log_node(fn: Callable[..., dict]) -> Callable[..., dict]:
         if not _configured:
             setup_logging()
         in_keys = sorted(state.keys()) if isinstance(state, dict) else state
-        node_logger.info("→ node %-13s | in: %s", fn.__name__, in_keys)
+        node_logger.info("→ node %-20s | in: %s", fn.__name__, in_keys)
+
+        t0 = perf_counter()  # ← start
         patch = fn(state)
-        if isinstance(patch, dict):
-            rendered = {k: _truncate(v) for k, v in patch.items()}
-        else:
-            rendered = _truncate(patch)
-        node_logger.info("← node %-13s | out: %s", fn.__name__, rendered)
+        elapsed = perf_counter() - t0  # ← stop
+
+        rendered = (
+            {k: _truncate(v) for k, v in patch.items()}
+            if isinstance(patch, dict)
+            else _truncate(patch)
+        )
+        node_logger.info(
+            "← node %-20s | %.2fs | out: %s",  # ← %.2fs added
+            fn.__name__,
+            elapsed,
+            rendered,
+        )
         return patch
 
     return wrapper

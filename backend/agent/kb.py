@@ -14,6 +14,7 @@ subsequent startups.  The index file lives at the path given by the env-var
 To force a full rebuild (e.g. after updating KB docs) delete the index
 directory or set the env-var ``KB_FORCE_REBUILD=1``.
 """
+
 from __future__ import annotations
 
 import os
@@ -25,6 +26,7 @@ from langchain_core.documents import Document
 from langchain_core.tools import tool
 
 from kb_index import KbDocument, load_kb_docs
+
 from .llm import embeddings_backend_id, get_embeddings
 from .logging_utils import get_logger
 from .sources import record_source
@@ -97,8 +99,16 @@ CATEGORY_BY_ID: dict[str, str] = {
 
 _CATEGORY_HINTS: dict[str, tuple[str, ...]] = {
     "product_specification": (
-        "allergen", "shelf life", "ingredient", "nutrition", "spec", "gluten",
-        "best before", "storage", "ean", "format",
+        "allergen",
+        "shelf life",
+        "ingredient",
+        "nutrition",
+        "spec",
+        "gluten",
+        "best before",
+        "storage",
+        "ean",
+        "format",
     ),
     "commercial": ("price", "prices", "list price", "listino", "cost", "eur"),
     "policy": ("policy", "return", "complaint", "quality", "warranty", "refund"),
@@ -203,9 +213,7 @@ def build_index() -> FAISS:
             try:
                 _store = _load_from_disk()
             except Exception:
-                logger.exception(
-                    "Failed to load FAISS index from disk; rebuilding …"
-                )
+                logger.exception("Failed to load FAISS index from disk; rebuilding …")
                 _store = _build_and_save(kb_docs)
 
         logger.info("KB ready (%d documents indexed)", len(kb_docs))
@@ -237,9 +245,7 @@ def format_context(docs: list[Document]) -> str:
     blocks = []
     for d in docs:
         meta = d.metadata
-        blocks.append(
-            f"[{meta.get('doc_id')}] {meta.get('title')}\n{d.page_content}"
-        )
+        blocks.append(f"[{meta.get('doc_id')}] {meta.get('title')}\n{d.page_content}")
     return "\n\n---\n\n".join(blocks)
 
 

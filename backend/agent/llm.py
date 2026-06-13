@@ -130,10 +130,7 @@ def message_text(message: BaseMessage | Any) -> str:
     """
     content = getattr(message, "content", message)
     if isinstance(content, list):
-        parts = [
-            part.get("text", "") if isinstance(part, dict) else str(part)
-            for part in content
-        ]
+        parts = [part.get("text", "") if isinstance(part, dict) else str(part) for part in content]
         content = "".join(parts)
     text = (content or "").strip() if isinstance(content, str) else str(content).strip()
     if text:

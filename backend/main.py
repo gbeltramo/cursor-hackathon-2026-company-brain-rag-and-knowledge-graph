@@ -7,7 +7,6 @@ then answers with text or an artifact. Full spec and rules in AGENTS.md.
 The /ask contract below is FROZEN - the automated evaluator depends on it.
 """
 
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -17,8 +16,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from agent.kb import build_index
 from agent.graph import answer_question
+from agent.kb import build_index
 from agent.logging_utils import get_logger, setup_logging
 
 load_dotenv()
