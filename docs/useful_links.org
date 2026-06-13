@@ -1,0 +1,5 @@
+#+title: Useful links
+
+1. karpathy/llm-wiki.md :: https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f
+2. How We Built an AI Second Brain for 60K Knowledge Workers :: https://medium.com/@AnalyticsAtMeta/how-we-built-an-ai-second-brain-for-60k-knowledge-workers-78c507dd795b
+3. ~llm_wiki~ knowledge graph :: https://github.com/nashsu/llm_wiki
