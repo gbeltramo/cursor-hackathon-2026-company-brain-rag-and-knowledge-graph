@@ -39,7 +39,13 @@ def _embedding_api_key() -> str:
 
 @lru_cache(maxsize=1)
 def get_chat_model() -> ChatOpenAI:
-    """Tool-calling chat model used by the router and the verticale agents."""
+    """Tool-calling chat model used by the router and the verticale agents.
+
+    qwen3.5-9b is a reasoning model: left to its own devices it emits a
+    ``<think>`` block that burns tokens and latency (we have a hard 30s budget).
+    We disable thinking globally via the Qwen chat-template flag so every call
+    (router + verticale agents) goes straight to the answer/tool call.
+    """
     return ChatOpenAI(
         model=os.environ.get("MODEL", "qwen3.5-9b"),
         base_url=_base_url(),
@@ -47,6 +53,8 @@ def get_chat_model() -> ChatOpenAI:
         temperature=0,
         timeout=25,
         max_retries=2,
+        # Qwen3 on vLLM/Regolo: turn off the reasoning/thinking phase.
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
     )
 
 

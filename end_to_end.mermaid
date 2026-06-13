@@ -1,0 +1,7 @@
+flowchart TD
+    P[POST /ask] --> AQ[answer_question]
+    AQ --> C{in-memory cache hit?}
+    C -->|yes| R[return cached response]
+    C -->|no| G[get_graph.stream<br/>stream_mode=updates]
+    G --> M[map final state →<br/>answer, sources, verticale, artifact_url]
+    M --> R

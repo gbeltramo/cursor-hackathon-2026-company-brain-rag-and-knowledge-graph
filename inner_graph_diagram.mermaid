@@ -1,0 +1,13 @@
+flowchart LR
+    Q[question] --> CA{{create_agent<br/>ReAct tool loop<br/>recursion_limit = 8}}
+    CA -->|tool call| T[Tools]
+    T -->|JSON result| CA
+    CA -->|final message| A[answer text + sources]
+
+    subgraph T[Tools by verticale]
+      direction TB
+      CRM["crm: crm_customers, crm_customer,<br/>crm_opportunities, crm_orders,<br/>crm_invoices, calls_list, calculator"]
+      ERP["erp: erp_production_orders, erp_inventory,<br/>erp_suppliers, erp_bom, erp_shipments,<br/>crm_customers, crm_orders, calculator"]
+      CALLS["calls: calls_list, call_details,<br/>call_transcript, crm_customers,<br/>crm_customer, calculator"]
+      KBT["kb_search (appended to every verticale)"]
+    end
