@@ -242,6 +242,48 @@ def crm_opportunities(
 
 
 @tool
+def crm_opportunities_by_channel(stage: str = "") -> str:
+    """Total opportunity value (value_eur) grouped by customer channel
+    (GDO / distributor / horeca). Optionally filter by stage = qualification |
+    negotiation | won | lost.
+
+    Use this for ANY "total/sum of opportunities grouped by channel/segment"
+    question. It pages through ALL opportunities and ALL customers, joins each
+    opportunity to its customer's channel, and sums per channel in Python (exact).
+    Returns per-channel totals, counts, and the grand total - do not group by hand.
+    """
+    opps = _fetch_all("/crm/opportunities", {"stage": stage})
+    custs = _fetch_all("/crm/customers", {})
+    if "error" in opps or "error" in custs:
+        return json.dumps(
+            {
+                "error": "aggregation_failed",
+                "opportunities": opps.get("error"),
+                "customers": custs.get("error"),
+            }
+        )
+    channel_by_cust = {
+        c.get("id"): c.get("channel", "unknown") for c in custs.get("data", [])
+    }
+    totals: dict[str, float] = {}
+    counts: dict[str, int] = {}
+    for o in opps.get("data", []):
+        channel = channel_by_cust.get(o.get("customer_id"), "unknown")
+        totals[channel] = totals.get(channel, 0) + (o.get("value_eur") or 0)
+        counts[channel] = counts.get(channel, 0) + 1
+    return json.dumps(
+        {
+            "stage": stage or "all",
+            "by_channel": {
+                ch: {"total_value_eur": totals[ch], "count": counts[ch]} for ch in totals
+            },
+            "grand_total_eur": sum(totals.values()),
+            "opportunities_considered": opps.get("total"),
+        }
+    )
+
+
+@tool
 def crm_orders(
     customer_id: str = "",
     status: str = "",
@@ -425,7 +467,14 @@ def erp_shipments(
     )
 
 
-CRM_TOOLS = [crm_customers, crm_customer, crm_opportunities, crm_orders, crm_invoices]
+CRM_TOOLS = [
+    crm_customers,
+    crm_customer,
+    crm_opportunities,
+    crm_opportunities_by_channel,
+    crm_orders,
+    crm_invoices,
+]
 CALLS_TOOLS = [calls_list, call_details, call_transcript, crm_customer]
 ERP_TOOLS = [
     erp_production_orders,

@@ -31,7 +31,10 @@ from .sources import get_sources, reset_sources
 logger = get_logger("graph")
 
 
-_RECURSION_LIMIT = 6
+# A 3-hop chain (e.g. BOM -> supplier -> inventory) or a multi-aspect deck needs
+# ~4-5 LLM turns; each turn + its tool round is 2 graph steps. Keep enough budget
+# that real chains finish instead of dying mid-loop (the salvage path is a backstop).
+_RECURSION_LIMIT = 14
 
 _API_SYSTEM = """You are the Al Dente S.r.l. company-data assistant (pasta maker). \
 Answer ONLY from tool results.
@@ -42,8 +45,17 @@ or call, confirm it exists with a tool before answering. If it does not exist, \
 say so explicitly (e.g. "There is no customer named X in the CRM"). Never invent.
 - For counts, totals, or sums, call the relevant list tool with fetch_all=true \
 and compute from the returned rows or the "total" field. Do not guess numbers.
+- For "total ... grouped by channel/segment" questions, use crm_opportunities_by_channel \
+(it joins opportunities to customers and sums per channel exactly). Do not group by hand.
+- Some metrics are NOT stored anywhere: profit margin, cost, COGS, profitability, \
+markup. If asked for such a figure, do NOT compute, estimate, or hunt across tools \
+for it - state plainly that it is not available in the sources.
+- To check if a specific item is below minimum stock, call erp_inventory with \
+search=<sku> and compare on-hand vs minimum. State the conclusion explicitly using \
+the words "below minimum" or "not below minimum".
 - Filters are exact and case-sensitive (channel=GDO, status=active, type=support).
-- Transcripts are long: use call_transcript with a focused search term only.
+- Transcripts are long: use call_transcript with a focused search term only. A call \
+id looks like CALL-#####, never CUST-####.
 - Be concise and factual. If the data is not in any source, say it is not available."""
 
 _KB_SYSTEM = """You answer questions about Al Dente S.r.l. using ONLY the provided \
@@ -52,9 +64,11 @@ available in the documents. Be concise and precise; keep allergens, shelf life a
 prices exact. Do not invent figures."""
 
 _HTML_SUFFIX = (
-    "\n\nProduce the deliverable as a single self-contained block of inline HTML "
-    "(use semantic tags and minimal inline CSS). Put real data from the sources in "
-    "it. Return only the HTML."
+    "\n\nFirst gather every figure you need with tools (profile, deals, orders/lots, "
+    "calls). Compute and explicitly include all key totals as concrete numbers - e.g. "
+    "the count AND total value of open deals - do not leave aggregates implicit. Then "
+    "produce the deliverable as a single self-contained block of inline HTML (semantic "
+    "tags, minimal inline CSS) containing those real numbers. Return only the HTML."
 )
 
 _REPORT_SUFFIX = (
@@ -104,17 +118,69 @@ def route(state: State) -> dict:
     }
 
 
-def _gather_api(question: str, verticale: str, reasoning: bool = False) -> tuple[str, list[str]]:
-    """Run the verticale tool-loop agent; capture tool sources in this context."""
-    reset_sources()
+def _force_answer(messages: list, question: str, reasoning: bool) -> str:
+    """Synthesize a final answer from the tool results gathered so far.
+
+    Used when the agent loop is cut short (recursion limit) or ends without a
+    textual answer. We flatten tool outputs into a plain prompt (avoiding orphaned
+    tool_call/tool-message pairing errors) so the data already fetched is not
+    wasted on a generic "couldn't find" fallback.
+    """
+    chunks: list[str] = []
+    for m in messages:
+        mtype = getattr(m, "type", "")
+        if mtype == "tool":
+            chunks.append(message_text(m)[:2000])
+        elif mtype == "ai":
+            t = message_text(m)
+            if t:
+                chunks.append(t)
+    context = "\n\n".join(c for c in chunks if c)[:8000]
+    if not context:
+        return ""
+    model = get_reasoning_model() if reasoning else get_chat_model()
+    prompt = (
+        f"Question: {question}\n\nTool results gathered so far:\n{context}\n\n"
+        "Answer the question using ONLY these tool results. If the needed data is "
+        "not present, say it is not available. Be concise and factual."
+    )
     try:
-        result = _api_agent(verticale, reasoning).invoke(
+        return message_text(
+            model.invoke(
+                [
+                    {"role": "system", "content": _API_SYSTEM},
+                    {"role": "user", "content": prompt},
+                ]
+            )
+        )
+    except Exception:
+        return ""
+
+
+def _gather_api(question: str, verticale: str, reasoning: bool = False) -> tuple[str, list[str]]:
+    """Run the verticale tool-loop agent; capture tool sources in this context.
+
+    Streams so that if the loop hits the recursion limit (or otherwise ends
+    without a textual answer) we still have the intermediate messages and can
+    salvage an answer from the data already fetched.
+    """
+    reset_sources()
+    last_state: dict | None = None
+    text = ""
+    try:
+        for chunk in _api_agent(verticale, reasoning).stream(
             {"messages": [{"role": "user", "content": question}]},
             config={"recursion_limit": _RECURSION_LIMIT},
-        )
-        text = message_text(result["messages"][-1])
+            stream_mode="values",
+        ):
+            last_state = chunk
+        if last_state and last_state.get("messages"):
+            text = message_text(last_state["messages"][-1])
     except Exception:
-        text = ""
+        logger.warning("API agent loop interrupted (recursion/limit); salvaging.", exc_info=True)
+
+    if not text and last_state and last_state.get("messages"):
+        text = _force_answer(last_state["messages"], question, reasoning)
     return text, get_sources()
 
 

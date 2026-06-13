@@ -36,8 +36,15 @@ intent:
 report, spreadsheet, PDF, or similar deliverable
 - not_available: the question is clearly unrelated to Al Dente or to company data
 
-For a complaint mentioned in a call whose answer is a policy, pick the dominant \
-source. Pick exactly one verticale."""
+Routing a question that spans a call AND a policy/document:
+- If it is ABOUT a specific call, complaint, conversation, or what a customer said \
+or was promised (e.g. "the complaint from that last X call", "does that call's \
+issue qualify for a return", "what was agreed on the call") -> verticale=calls, \
+even when judging it needs the returns/quality policy. The call is the anchor.
+- Choose kb ONLY when the question is purely about a document/policy/price/spec with \
+no specific call or customer interaction driving it.
+
+Pick exactly one verticale."""
 
 
 class Route(BaseModel):
