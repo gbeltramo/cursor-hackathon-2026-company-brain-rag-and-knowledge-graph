@@ -31,7 +31,7 @@ from .sources import get_sources, reset_sources
 logger = get_logger("graph")
 
 
-_RECURSION_LIMIT = 8
+_RECURSION_LIMIT = 7
 
 _API_SYSTEM = """You are the Al Dente S.r.l. company-data assistant (pasta maker). \
 Answer ONLY from tool results.
