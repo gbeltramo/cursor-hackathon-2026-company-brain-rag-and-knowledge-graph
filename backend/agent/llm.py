@@ -57,6 +57,24 @@ def get_chat_model() -> ChatOpenAI:
         extra_body={"chat_template_kwargs": {"enable_thinking": False}},
     )
 
+@lru_cache(maxsize=1)
+def get_reasoning_model() -> ChatOpenAI:
+    """Same model but with Qwen3 thinking enabled.
+    Use only for the final answer synthesis nodes (kb_node, api_agent_node).
+    The router stays on get_chat_model() (thinking off) for speed.
+    """
+    return ChatOpenAI(
+        model=os.environ.get("MODEL", "qwen3.5-9b"),
+        base_url=_base_url(),
+        api_key=_api_key(),
+        temperature=0,
+        timeout=25,
+        max_retries=2,
+        extra_body={
+            "chat_template_kwargs": {"enable_thinking": True},
+            "reasoning_effort": "low",
+        },
+    )
 
 _LOCAL_EMBEDDING_DIM = 1024
 _TOKEN_RE = re.compile(r"[a-z0-9]+")

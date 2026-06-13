@@ -8,17 +8,19 @@ The /ask contract below is FROZEN - the automated evaluator depends on it.
 """
 
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from agent.graph import answer_question
 from agent.kb import build_index
 from agent.logging_utils import get_logger, setup_logging
+from kb_index import load_kb_docs
 
 load_dotenv()
 
@@ -69,6 +71,24 @@ class AskResponse(BaseModel):
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@lru_cache(maxsize=1)
+def _kb_text_by_id() -> dict[str, str]:
+    """Map KB document id -> raw markdown content (built once, cached)."""
+    return {doc.doc_id: doc.content for doc in load_kb_docs()}
+
+
+@app.get("/kb/{doc_id}", response_class=PlainTextResponse, include_in_schema=False)
+def kb_document(doc_id: str) -> PlainTextResponse:
+    """Serve the raw KB document as plain text so the UI can link to a source.
+
+    Opened in a new browser tab from the answer's "Sources" chips.
+    """
+    content = _kb_text_by_id().get(doc_id.strip().upper())
+    if content is None:
+        raise HTTPException(status_code=404, detail=f"Unknown document {doc_id}")
+    return PlainTextResponse(content, media_type="text/plain; charset=utf-8")
 
 
 @app.post("/ask", response_model=AskResponse)

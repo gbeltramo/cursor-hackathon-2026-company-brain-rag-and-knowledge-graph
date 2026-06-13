@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../domain/ask_result.dart';
@@ -17,6 +18,16 @@ class AnswerView extends StatelessWidget {
 
   bool get _looksLikeHtml => _htmlTag.hasMatch(result.answer);
 
+  /// The answer rendered as HTML. Plain answers are treated as Markdown and
+  /// converted, so **bold**, lists, tables and `code` look polished instead of
+  /// showing raw markers.
+  String get _html => _looksLikeHtml
+      ? result.answer
+      : md.markdownToHtml(
+          result.answer,
+          extensionSet: md.ExtensionSet.gitHubFlavored,
+        );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -25,13 +36,18 @@ class AnswerView extends StatelessWidget {
       children: [
         _VerticaleTag(verticale: result.verticale),
         const SizedBox(height: 8),
-        if (_looksLikeHtml)
-          SelectionArea(child: HtmlWidget(result.answer))
-        else
-          SelectableText(
-            result.answer,
-            style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+        SelectionArea(
+          child: HtmlWidget(
+            _html,
+            textStyle: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
+            onTapUrl: (url) async {
+              final uri = Uri.tryParse(url);
+              if (uri == null) return false;
+              await launchUrl(uri, webOnlyWindowName: '_blank');
+              return true;
+            },
           ),
+        ),
         if (result.artifactUrl != null) ...[
           const SizedBox(height: 12),
           _ArtifactButton(url: result.artifactUrl!),
@@ -91,13 +107,25 @@ class _Sources extends StatelessWidget {
 
   final List<String> sources;
 
+  /// Knowledge-base document ids (e.g. "DOC-004") can be opened as plain text;
+  /// API endpoints (e.g. "crm/opportunities") are shown as static chips.
+  static final RegExp _docId = RegExp(r'^DOC-\d+$', caseSensitive: false);
+
+  /// Plain-text URL for a KB document, served by the backend on the same
+  /// origin as the web app.
+  Uri _docUri(String id) => Uri.base.resolve('kb/${id.toUpperCase()}');
+
+  Future<void> _open(String id) async {
+    await launchUrl(_docUri(id), webOnlyWindowName: '_blank');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SelectableText(
+        Text(
           'Sources',
           style: theme.textTheme.labelLarge?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
@@ -109,12 +137,27 @@ class _Sources extends StatelessWidget {
           runSpacing: 6,
           children: [
             for (final s in sources)
-              Chip(
-                label: SelectableText(s),
-                visualDensity: VisualDensity.compact,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                side: BorderSide(color: theme.colorScheme.outlineVariant),
-              ),
+              if (_docId.hasMatch(s.trim()))
+                ActionChip(
+                  onPressed: () => _open(s.trim()),
+                  avatar: Icon(
+                    Icons.open_in_new,
+                    size: 15,
+                    color: theme.colorScheme.primary,
+                  ),
+                  label: Text(s),
+                  tooltip: 'Open ${s.toUpperCase()} as plain text',
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  side: BorderSide(color: theme.colorScheme.outlineVariant),
+                )
+              else
+                Chip(
+                  label: SelectableText(s),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  side: BorderSide(color: theme.colorScheme.outlineVariant),
+                ),
           ],
         ),
       ],
