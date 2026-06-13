@@ -13,7 +13,10 @@ Design notes (see API.md / AGENTS.md):
 
 from __future__ import annotations
 
+import ast
 import json
+import math
+import operator as _op
 import os
 from functools import lru_cache
 from typing import Any
@@ -21,7 +24,10 @@ from typing import Any
 import httpx
 from langchain_core.tools import tool
 
+from .logging_utils import get_logger
 from .sources import record_source as _record_source
+
+logger = get_logger("api_tools")
 
 # Hard cap on rows pulled by fetch_all, to stay within the latency budget.
 _MAX_ROWS = 1000
@@ -49,12 +55,15 @@ def _get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     try:
         resp = _client().get(path, params=_clean_params(params or {}))
     except httpx.HTTPError as exc:
+        logger.warning("GET %s failed: %s", path, exc)
         return {"error": "request_failed", "detail": str(exc)}
     if resp.status_code == 404:
         return {"error": "not_found", "status": 404}
     if resp.status_code == 401:
+        logger.error("GET %s -> 401 access_denied (check MOCK_API_TOKEN)", path)
         return {"error": "access_denied", "status": 401}
     if resp.status_code >= 400:
+        logger.warning("GET %s -> %s", path, resp.status_code)
         return {"error": "bad_request", "status": resp.status_code, "detail": resp.text[:200]}
     try:
         return resp.json()
@@ -93,6 +102,76 @@ def _list(path: str, params: dict[str, Any], fetch_all: bool, limit: int) -> str
             "returned": len(page.get("data", [])),
         }
     )
+
+
+# --- Calculator ---------------------------------------------------------------
+
+# Whitelisted binary/unary operators for the safe expression evaluator.
+_BIN_OPS = {
+    ast.Add: _op.add,
+    ast.Sub: _op.sub,
+    ast.Mult: _op.mul,
+    ast.Div: _op.truediv,
+    ast.FloorDiv: _op.floordiv,
+    ast.Mod: _op.mod,
+    ast.Pow: _op.pow,
+}
+_UNARY_OPS = {ast.UAdd: _op.pos, ast.USub: _op.neg}
+
+# Whitelisted callables the model may use inside an expression.
+_FUNCS = {
+    "round": round,
+    "abs": abs,
+    "min": min,
+    "max": max,
+    "sum": sum,
+    "sqrt": math.sqrt,
+}
+
+
+def _safe_eval(node: ast.AST) -> Any:
+    """Recursively evaluate a parsed expression using only whitelisted nodes."""
+    if isinstance(node, ast.Expression):
+        return _safe_eval(node.body)
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
+            raise ValueError(f"unsupported constant: {node.value!r}")
+        return node.value
+    if isinstance(node, ast.BinOp) and type(node.op) in _BIN_OPS:
+        return _BIN_OPS[type(node.op)](_safe_eval(node.left), _safe_eval(node.right))
+    if isinstance(node, ast.UnaryOp) and type(node.op) in _UNARY_OPS:
+        return _UNARY_OPS[type(node.op)](_safe_eval(node.operand))
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return [_safe_eval(elt) for elt in node.elts]
+    if isinstance(node, ast.Call):
+        func = node.func
+        if not isinstance(func, ast.Name) or func.id not in _FUNCS:
+            raise ValueError("only round/abs/min/max/sum/sqrt are allowed")
+        args = [_safe_eval(arg) for arg in node.args]
+        return _FUNCS[func.id](*args)
+    raise ValueError(f"unsupported expression element: {type(node).__name__}")
+
+
+@tool
+def calculator(expression: str) -> str:
+    """Evaluate an arithmetic expression and return the exact numeric result.
+
+    ALWAYS use this for arithmetic instead of computing in your head: product
+    values (unit_price * quantity), order/invoice line totals, sums and counts
+    over rows you fetched, percentages, discounts and margins, and unit
+    conversions. Supports + - * / // % ** parentheses and the functions
+    round, abs, min, max, sum, sqrt. Example: "12.5 * 480 + 3 * 99.9".
+    """
+    try:
+        tree = ast.parse(expression, mode="eval")
+        result = _safe_eval(tree)
+    except ZeroDivisionError:
+        return json.dumps({"expression": expression, "error": "division_by_zero"})
+    except Exception as exc:  # invalid / disallowed expression
+        logger.warning("calculator rejected %r: %s", expression, exc)
+        return json.dumps({"expression": expression, "error": "invalid_expression",
+                           "detail": str(exc)})
+    return json.dumps({"expression": expression, "result": result})
 
 
 # --- CRM ----------------------------------------------------------------------
@@ -339,14 +418,14 @@ ERP_TOOLS = [
     erp_shipments,
 ]
 
-# Verticale agents also benefit from a couple of cross-source lookups, since
-# multi-hop questions chase ids across CRM/ERP/calls.
+# The calculator is source-agnostic: every API agent gets it so it can do exact
+# arithmetic (totals, product values, margins) instead of guessing numbers.
 TOOLS_BY_VERTICALE: dict[str, list] = {
-    "crm": CRM_TOOLS + [calls_list],
-    "calls": CALLS_TOOLS + [crm_customers],
-    "erp": ERP_TOOLS + [crm_customers, crm_orders],
+    "crm": CRM_TOOLS + [calls_list, calculator],
+    "calls": CALLS_TOOLS + [crm_customers, calculator],
+    "erp": ERP_TOOLS + [crm_customers, crm_orders, calculator],
 }
 
 ALL_TOOLS = list(
-    {t.name: t for t in CRM_TOOLS + CALLS_TOOLS + ERP_TOOLS}.values()
+    {t.name: t for t in CRM_TOOLS + CALLS_TOOLS + ERP_TOOLS + [calculator]}.values()
 )

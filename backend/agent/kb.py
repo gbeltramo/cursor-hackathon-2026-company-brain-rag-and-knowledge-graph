@@ -16,7 +16,6 @@ directory or set the env-var ``KB_FORCE_REBUILD=1``.
 """
 from __future__ import annotations
 
-import logging
 import os
 import threading
 from pathlib import Path
@@ -27,9 +26,10 @@ from langchain_core.tools import tool
 
 from kb_index import KbDocument, load_kb_docs
 from .llm import get_embeddings
+from .logging_utils import get_logger
 from .sources import record_source
 
-logger = logging.getLogger("company_brain.kb")
+logger = get_logger("kb")
 
 # ---------------------------------------------------------------------------
 # Configuration

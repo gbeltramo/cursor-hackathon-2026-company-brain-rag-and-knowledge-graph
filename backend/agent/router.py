@@ -13,6 +13,9 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from .llm import get_chat_model
+from .logging_utils import get_logger
+
+logger = get_logger("router")
 
 VERTICALI = {"crm", "erp", "calls", "kb"}
 INTENTS = {"answer", "artifact", "not_available"}
@@ -54,7 +57,9 @@ def route_question(question: str) -> Route:
         )
         verticale = result.verticale if result.verticale in VERTICALI else "kb"
         intent = result.intent if result.intent in INTENTS else "answer"
+        logger.info("Routed verticale=%s intent=%s", verticale, intent)
         return Route(verticale=verticale, intent=intent)
     except Exception:
         # Degraded mode: default to KB answer; nodes still handle "not found".
+        logger.exception("Routing failed; falling back to verticale=kb intent=answer")
         return Route(verticale="kb", intent="answer")

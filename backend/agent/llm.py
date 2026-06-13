@@ -13,6 +13,10 @@ from typing import Any
 from langchain_core.messages import BaseMessage
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
+from .logging_utils import get_logger
+
+logger = get_logger("llm")
+
 
 def _base_url() -> str:
     return os.environ.get("LLM_BASE_URL", "https://api.regolo.ai/v1")

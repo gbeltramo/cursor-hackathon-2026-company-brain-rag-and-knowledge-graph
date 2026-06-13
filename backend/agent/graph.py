@@ -10,7 +10,6 @@ the frozen AskResponse schema.
 
 from __future__ import annotations
 
-import logging
 import operator
 from functools import lru_cache
 import time
@@ -24,12 +23,13 @@ from .artifacts import build_artifact, detect_binary_format
 from .guardrails import REFUSAL_MESSAGE, check_input, sanitize_output
 from .kb import format_context, infer_category, kb_search, search_kb
 from .llm import get_chat_model, message_text
+from .logging_utils import get_logger, log_node, setup_logging
 from .router import route_question
 from .sources import get_sources, reset_sources
 from .api_tools import TOOLS_BY_VERTICALE
 
 
-logger = logging.getLogger("company_brain")
+logger = get_logger("graph")
 
 
 _RECURSION_LIMIT = 8
@@ -85,6 +85,7 @@ def _api_agent(verticale: str):
 # --- Nodes --------------------------------------------------------------------
 
 
+@log_node
 def input_guard(state: State) -> dict:
     verdict = check_input(state["question"])
     if not verdict["allowed"]:
@@ -92,6 +93,7 @@ def input_guard(state: State) -> dict:
     return {"blocked": False}
 
 
+@log_node
 def route(state: State) -> dict:
     decision = route_question(state["question"])
     fmt = (
@@ -135,6 +137,7 @@ def _gather_kb(question: str) -> tuple[str, list[str]]:
     return text, [d.metadata.get("doc_id", "kb") for d in docs]
 
 
+@log_node
 def api_agent_node(state: State) -> dict:
     question = state["question"]
     if state.get("intent") == "artifact":  # inline HTML deliverable
@@ -143,6 +146,7 @@ def api_agent_node(state: State) -> dict:
     return {"answer": answer, "sources": sources}
 
 
+@log_node
 def kb_node(state: State) -> dict:
     question = state["question"]
     if state.get("intent") == "artifact":  # inline HTML deliverable
@@ -162,6 +166,7 @@ def _artifact_title(question: str) -> str:
     return title[:80]
 
 
+@log_node
 def artifact_node(state: State) -> dict:
     """Binary deliverable (docx/pptx/pdf/xlsx): gather the data as markdown, then
     render the file and return its absolute URL."""
@@ -190,12 +195,14 @@ def artifact_node(state: State) -> dict:
     return {"answer": answer, "artifact_url": url, "sources": sources}
 
 
+@log_node
 def refuse_node(state: State) -> dict:
     if state.get("answer"):
         return {}
     return {"answer": REFUSAL_MESSAGE}
 
 
+@log_node
 def output_guard(state: State) -> dict:
     return {"answer": sanitize_output(state.get("answer", ""))}
 
@@ -246,6 +253,7 @@ _cache: dict[str, dict] = {}
 
 
 def answer_question(question: str) -> dict:
+    setup_logging()  # idempotent: ensures the debug file exists for non-FastAPI callers
     key = " ".join((question or "").lower().split())
     if key in _cache:
         logger.debug("Cache hit for: %r", key)

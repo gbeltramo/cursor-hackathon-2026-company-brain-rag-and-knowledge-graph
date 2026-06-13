@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import contextvars
 
+from .logging_utils import get_logger
+
+logger = get_logger("sources")
+
 _sources: contextvars.ContextVar[list[str]] = contextvars.ContextVar("request_sources")
 
 

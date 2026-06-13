@@ -15,3 +15,6 @@ __pycache__/
 # Generated artifacts
 static/files/*
 !static/files/.gitkeep
+
+# LangGraph debug logs
+logs/

@@ -7,7 +7,6 @@ then answers with text or an artifact. Full spec and rules in AGENTS.md.
 The /ask contract below is FROZEN - the automated evaluator depends on it.
 """
 
-import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -20,19 +19,23 @@ from pydantic import BaseModel, Field
 
 from agent.kb import build_index
 from agent.graph import answer_question
+from agent.logging_utils import get_logger, setup_logging
 
 load_dotenv()
 
-logger = logging.getLogger("company_brain")
+logger = get_logger("main")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Configure logging first so the KB build + every request land in the
+    # timestamped lang_graph debug file.
+    log_path = setup_logging()
+    logger.info("LangGraph debug log -> %s", log_path)
+
     # Build the in-memory KB embedding index once at startup (35 small docs =
     # one batched embed call, well within the Railway healthcheck window).
     try:
-        
-
         build_index()
         logger.info("KB index built")
     except Exception:  # never block startup / healthcheck on a provider hiccup

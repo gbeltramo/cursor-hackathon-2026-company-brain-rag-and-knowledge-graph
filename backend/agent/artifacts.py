@@ -13,6 +13,10 @@ import re
 import uuid
 from pathlib import Path
 
+from .logging_utils import get_logger
+
+logger = get_logger("artifacts")
+
 _FILES_DIR = Path(__file__).resolve().parent.parent / "static" / "files"
 
 # Explicit format keywords. "slides"/"presentation"/"deck" alone stay inline HTML
@@ -246,4 +250,6 @@ def build_artifact(fmt: str, title: str, content: str) -> str:
     _FILES_DIR.mkdir(parents=True, exist_ok=True)
     filename = _filename(title, fmt)
     _BUILDERS[fmt](title, content, _FILES_DIR / filename)
-    return public_url(filename)
+    url = public_url(filename)
+    logger.info("Built %s artifact -> %s", fmt, url)
+    return url

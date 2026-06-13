@@ -12,6 +12,10 @@ from __future__ import annotations
 
 import re
 
+from .logging_utils import get_logger
+
+logger = get_logger("guardrails")
+
 _JAILBREAK_PATTERNS = [
     r"ignore\s+(?:\w+\s+){0,4}(?:instructions|prompt|rules)",
     r"disregard\s+(?:\w+\s+){0,4}(?:instructions|prompt|rules)",
@@ -40,6 +44,7 @@ def check_input(question: str) -> dict:
     """Return {'allowed': bool, 'reason': str|None} for an incoming question."""
     match = _JAILBREAK_RE.search(question or "")
     if match:
+        logger.warning("Input blocked by jailbreak pattern: %r", match.group(0))
         return {"allowed": False, "reason": f"jailbreak_pattern:{match.group(0)!r}"}
     return {"allowed": True, "reason": None}
 
