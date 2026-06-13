@@ -25,7 +25,7 @@ from langchain_core.documents import Document
 from langchain_core.tools import tool
 
 from kb_index import KbDocument, load_kb_docs
-from .llm import get_embeddings
+from .llm import embeddings_backend_id, get_embeddings
 from .logging_utils import get_logger
 from .sources import record_source
 
@@ -36,7 +36,12 @@ logger = get_logger("kb")
 # ---------------------------------------------------------------------------
 
 _DEFAULT_INDEX_PATH = Path("data/kb_index")
-_INDEX_DIR: Path = Path(os.environ.get("KB_INDEX_PATH", _DEFAULT_INDEX_PATH))
+# Namespace the index by embedding backend so a vector store built with the
+# remote embeddings is never loaded with the local fallback (or vice-versa),
+# which would crash on a dimension mismatch.
+_INDEX_DIR: Path = (
+    Path(os.environ.get("KB_INDEX_PATH", _DEFAULT_INDEX_PATH)) / embeddings_backend_id()
+)
 _FORCE_REBUILD: bool = os.environ.get("KB_FORCE_REBUILD", "0").strip() == "1"
 
 # ---------------------------------------------------------------------------
