@@ -23,7 +23,7 @@ from .api_tools import TOOLS_BY_VERTICALE
 from .artifacts import build_artifact, detect_binary_format
 from .guardrails import REFUSAL_MESSAGE, check_input, sanitize_output
 from .kb import format_context, infer_category, kb_search, search_kb
-from .llm import get_chat_model, message_text
+from .llm import get_chat_model, get_reasoning_model, message_text
 from .logging_utils import get_logger, log_node, setup_logging
 from .router import route_question
 from .sources import get_sources, reset_sources
@@ -75,10 +75,11 @@ class State(TypedDict, total=False):
     blocked: bool
 
 
-@lru_cache(maxsize=4)
-def _api_agent(verticale: str):
+@lru_cache(maxsize=8)
+def _api_agent(verticale: str, reasoning: bool = False):
     tools = TOOLS_BY_VERTICALE[verticale] + [kb_search]
-    return create_agent(model=get_chat_model(), tools=tools, system_prompt=_API_SYSTEM)
+    model = get_reasoning_model() if reasoning else get_chat_model()
+    return create_agent(model=model, tools=tools, system_prompt=_API_SYSTEM)
 
 
 # --- Nodes --------------------------------------------------------------------
@@ -103,11 +104,11 @@ def route(state: State) -> dict:
     }
 
 
-def _gather_api(question: str, verticale: str) -> tuple[str, list[str]]:
+def _gather_api(question: str, verticale: str, reasoning: bool = False) -> tuple[str, list[str]]:
     """Run the verticale tool-loop agent; capture tool sources in this context."""
     reset_sources()
     try:
-        result = _api_agent(verticale).invoke(
+        result = _api_agent(verticale, reasoning).invoke(
             {"messages": [{"role": "user", "content": question}]},
             config={"recursion_limit": _RECURSION_LIMIT},
         )
@@ -117,13 +118,14 @@ def _gather_api(question: str, verticale: str) -> tuple[str, list[str]]:
     return text, get_sources()
 
 
-def _gather_kb(question: str) -> tuple[str, list[str]]:
+def _gather_kb(question: str, reasoning: bool = False) -> tuple[str, list[str]]:
     docs = search_kb(question, k=3, category=infer_category(question))
     if not docs:
         return "", []
     user = f"Documents:\n\n{format_context(docs)}\n\nQuestion: {question}"
+    model = get_reasoning_model() if reasoning else get_chat_model()
     try:
-        response = get_chat_model().invoke(
+        response = model.invoke(
             [
                 {"role": "system", "content": _KB_SYSTEM},
                 {"role": "user", "content": user},
@@ -140,7 +142,7 @@ def api_agent_node(state: State) -> dict:
     question = state["question"]
     if state.get("intent") == "artifact":  # inline HTML deliverable
         question += _HTML_SUFFIX
-    answer, sources = _gather_api(question, state["verticale"])
+    answer, sources = _gather_api(question, state["verticale"], reasoning=True)
     return {"answer": answer, "sources": sources}
 
 
@@ -149,7 +151,7 @@ def kb_node(state: State) -> dict:
     question = state["question"]
     if state.get("intent") == "artifact":  # inline HTML deliverable
         question += _HTML_SUFFIX
-    answer, sources = _gather_kb(question)
+    answer, sources = _gather_kb(question, reasoning=True)
     if not answer and not sources:
         return {
             "answer": "I couldn't find this in the company knowledge base documents.",
