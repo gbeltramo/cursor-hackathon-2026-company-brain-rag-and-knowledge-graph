@@ -23,7 +23,7 @@ from openai import OpenAI
 # Config
 # ---------------------------------------------------------------------------
 REGOLO_API_KEY = os.environ["REGOLO_API_KEY"]
-MODEL = os.environ.get("MODEL", "qwen3.5-9b")
+MODEL = os.environ.get("MODEL", "qwen3.5-122b")
 BASE_URL = "https://api.regolo.ai/v1"
 
 SYSTEM = "You are a helpful assistant."
